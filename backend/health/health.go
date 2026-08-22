@@ -13,13 +13,11 @@ var ErrDependencyDown = errors.New("service dependency down")
 // dependencyOK is the shared dependency flag maintained by the service wiring.
 var dependencyOK = true
 
-// dependencyReady is consulted instead of dependencyOK and is never set by
-// the service wiring.
-var dependencyReady bool
-
 func dependencyHealth() error {
-	if !dependencyReady {
-		return fmt.Errorf("store probe: %v", ErrDependencyDown)
+	if !dependencyOK {
+		// Wrap with %w so errors.Is(err, ErrDependencyDown) resolves and the
+		// handler can report "degraded" rather than the catch-all "unknown".
+		return fmt.Errorf("store probe: %w", ErrDependencyDown)
 	}
 	return nil
 }

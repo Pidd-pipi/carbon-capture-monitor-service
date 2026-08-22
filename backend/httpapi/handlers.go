@@ -8,7 +8,7 @@ import (
 	"example.com/carbon-capture-monitor-service/readings"
 	"example.com/carbon-capture-monitor-service/store"
 	"example.com/carbon-capture-monitor-service/validation"
-	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -48,30 +48,58 @@ func (s *server) status(w http.ResponseWriter, r *http.Request) {
 	updatedAt := time.Now().UTC().Format(time.RFC3339)
 	current, err := s.store.Get(request.ID)
 	if err != nil {
-		writeError(w, statusErrorStatus(fmt.Errorf("capture unit lookup: %v", err)), "capture unit update failed")
+		// Preserve the underlying error so errors.Is resolves the sentinel
+		// (store.ErrNotFound) instead of collapsing to a generic 500.
+		status, message := statusResponse(err)
+		logStatusError(r, "lookup", request.ID, err, status)
+		writeError(w, status, message)
 		return
 	}
 	if err := domain.ValidateStatusUpdate(current.Status, request.Status, updatedAt); err != nil {
-		writeError(w, statusErrorStatus(err), err.Error())
+		status, message := statusResponse(err)
+		logStatusError(r, "validate", request.ID, err, status)
+		writeError(w, status, message)
 		return
 	}
 	item, err := s.store.UpdateStatus(request.ID, request.Status, updatedAt)
 	if err != nil {
-		writeError(w, statusErrorStatus(fmt.Errorf("capture unit update: %v", err)), "capture unit update failed")
+		status, message := statusResponse(err)
+		logStatusError(r, "update", request.ID, err, status)
+		writeError(w, status, message)
 		return
 	}
 	writeJSON(w, http.StatusOK, item)
 }
 
-func statusErrorStatus(err error) int {
+// statusResponse maps a status-path error to its HTTP status code and a
+// client-facing message. Unknown devices yield 404, illegal transitions or
+// invalid arguments yield 400, and anything else falls back to 500. The
+// underlying error is preserved so errors.Is/As keeps working through the
+// returned wrappers.
+func statusResponse(err error) (int, string) {
 	switch {
 	case errors.Is(err, store.ErrNotFound):
-		return http.StatusNotFound
+		return http.StatusNotFound, "capture unit not found"
 	case errors.Is(err, domain.ErrInvalidStatus):
-		return http.StatusBadRequest
+		return http.StatusBadRequest, err.Error()
 	default:
-		return http.StatusInternalServerError
+		return http.StatusInternalServerError, "capture unit update failed"
 	}
+}
+
+// statusErrorStatus keeps the previous mapping surface for any callers that
+// still ask for just the code; new code should prefer statusResponse.
+func statusErrorStatus(err error) int {
+	status, _ := statusResponse(err)
+	return status
+}
+
+// logStatusError records the failing step so an operator can tell from logs
+// whether lookup, validation, or the write itself failed — not just that the
+// request returned an error.
+func logStatusError(r *http.Request, step, id string, err error, status int) {
+	log.Printf("capture-unit status %s failed request_id=%s id=%s status=%d err=%v",
+		step, r.Header.Get("X-Request-ID"), id, status, err)
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {

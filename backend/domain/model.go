@@ -38,13 +38,14 @@ func (r Reading) At() (time.Time, bool) {
 
 // ValidateStatusUpdate applies the capture-unit transition rules. A unit in
 // maintenance must not jump straight back online, and every update must carry
-// a timestamp.
+// a timestamp. The returned error wraps ErrInvalidStatus so callers can tell
+// a rejected transition apart from a genuine failure via errors.Is.
 func ValidateStatusUpdate(current, next, updatedAt string) error {
 	if current == "maintenance" && next == "online" {
-		return fmt.Errorf("validate status update: %v", ErrInvalidStatus)
+		return fmt.Errorf("maintenance cannot transition directly to online: %w", ErrInvalidStatus)
 	}
 	if updatedAt == "" {
-		return fmt.Errorf("validate status update: %v", ErrInvalidStatus)
+		return fmt.Errorf("updated_at is required: %w", ErrInvalidStatus)
 	}
 	return nil
 }
