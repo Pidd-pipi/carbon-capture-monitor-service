@@ -8,7 +8,9 @@ import (
 var opsTransitionTable = map[OpsStatus]map[OpsStatus]bool{
 	OpsStatusQueued: {OpsStatusActive: true, OpsStatusClosed: true},
 	OpsStatusActive: {OpsStatusPaused: true, OpsStatusClosed: true},
-	OpsStatusPaused: {OpsStatusActive: true, OpsStatusClosed: true},
+	// A paused work order may be rewound back into the queue for re-triage
+	// as well as resumed or closed.
+	OpsStatusPaused: {OpsStatusQueued: true, OpsStatusActive: true, OpsStatusClosed: true},
 	OpsStatusClosed: {},
 }
 

@@ -27,7 +27,7 @@ func NewHandler(st *store.Store, alertSvc *ops.OpsService, readingStore *reading
 
 // knownAlertStatuses mirrors the alert state machine's valid statuses for the
 // status-scoped listing route.
-var knownAlertStatuses = map[string]bool{"active": true, "paused": true, "closed": true}
+var knownAlertStatuses = map[string]bool{"queued": true, "active": true, "paused": true, "closed": true}
 
 func (s *server) alertByStatus(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -35,7 +35,7 @@ func (s *server) alertByStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	status := strings.TrimPrefix(r.URL.Path, "/api/alerts/status/")
-	if !knownAlertStatuses[status] && status != "" {
+	if !knownAlertStatuses[status] {
 		writeError(w, http.StatusBadRequest, "unknown alert status")
 		return
 	}
