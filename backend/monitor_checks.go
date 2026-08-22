@@ -15,7 +15,10 @@ const (
 )
 
 // evaluateUnit inspects the latest reading of one unit and decides whether a
-// new alert should be raised for it.
+// new alert should be raised for it. The returned subject describes the
+// defect condition rather than the raw reading, so a unit with a sustained
+// fault produces one stable subject across jittering measurements instead of
+// a new one every cycle.
 func (m *Monitor) evaluateUnit(ctx context.Context, unit domain.CaptureUnit) cycleResult {
 	result := cycleResult{unit: unit}
 	if ctx.Err() != nil {
@@ -23,23 +26,26 @@ func (m *Monitor) evaluateUnit(ctx context.Context, unit domain.CaptureUnit) cyc
 		return result
 	}
 	latest, ok := m.readings.Latest(ctx, unit.ID)
-	if !ok {
-		return result
+	if ok {
+		switch {
+		case latest.PressureKPa >= pressureHighThreshold:
+			result.trigger = true
+			result.priority = "critical"
+			result.subject = fmt.Sprintf("%s pressure high", unit.ID)
+		case latest.CaptureRatePct < captureLowThreshold:
+			result.trigger = true
+			result.priority = "high"
+			result.subject = fmt.Sprintf("%s capture efficiency low", unit.ID)
+		case latest.SolventLevel < solventLowThreshold:
+			result.trigger = true
+			result.priority = "normal"
+			result.subject = fmt.Sprintf("%s solvent level low", unit.ID)
+		}
 	}
-	switch {
-	case latest.PressureKPa >= pressureHighThreshold:
-		result.trigger = true
-		result.priority = "critical"
-		result.subject = fmt.Sprintf("%s pressure high: %.1f kPa", unit.ID, latest.PressureKPa)
-	case latest.CaptureRatePct < captureLowThreshold:
-		result.trigger = true
-		result.priority = "high"
-		result.subject = fmt.Sprintf("%s capture efficiency low: %.1f%%", unit.ID, latest.CaptureRatePct)
-	case latest.SolventLevel < solventLowThreshold:
-		result.trigger = true
-		result.priority = "normal"
-		result.subject = fmt.Sprintf("%s solvent level low: %.1f%%", unit.ID, latest.SolventLevel)
-	case strings.EqualFold(unit.Status, "attention") || strings.EqualFold(unit.Status, "offline"):
+	// A unit flagged attention/offline needs surfacing even before any
+	// telemetry arrives, so operators learn about a misbehaving unit rather
+	// than silently waiting for the first reading.
+	if !result.trigger && (strings.EqualFold(unit.Status, "attention") || strings.EqualFold(unit.Status, "offline")) {
 		result.trigger = true
 		result.priority = "normal"
 		result.subject = fmt.Sprintf("%s unit status %s", unit.ID, unit.Status)

@@ -61,6 +61,8 @@ func (s *Store) UpdateReadings(id string, captureRatePct, pressureKPa, solventLe
 		if s.items[i].ID == id {
 			s.items[i].CaptureRatePct = captureRatePct
 			s.items[i].PressureKPa = pressureKPa
+			s.items[i].SolventLevel = solventLevel
+			s.items[i].UpdatedAt = updatedAt
 			return s.items[i], nil
 		}
 	}
