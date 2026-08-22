@@ -57,14 +57,14 @@ func (s *server) alertTransition(w http.ResponseWriter, r *http.Request, id stri
 	}
 	updated, err := s.alerts.Transition(r.Context(), id, body.ExpectedRevision, body.TargetStatus, actor)
 	if err != nil {
-		status := http.StatusBadRequest
+		status := http.StatusInternalServerError
 		switch ops.ErrorCode(err) {
 		case "not_found":
 			status = http.StatusNotFound
 		case "conflict":
 			status = http.StatusConflict
-		case "transition":
-			status = http.StatusBadRequest
+		case "transition", "invalid", "policy":
+			status = http.StatusUnprocessableEntity
 		}
 		writeError(w, status, err.Error())
 		return

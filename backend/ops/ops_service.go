@@ -83,18 +83,18 @@ func (s *OpsService) Transition(ctx context.Context, id string, expected int, ta
 	defer cancel()
 	record, err := s.store.Get(ctx, id)
 	if err != nil {
-		return OpsRecord{}, fmt.Errorf("transition %s: %v", id, err)
+		return OpsRecord{}, fmt.Errorf("transition %s: %w", id, err)
 	}
 	if expected > 0 && expected != record.Revision {
-		return OpsRecord{}, fmt.Errorf("transition %s: %v", id, ErrOpsConflict)
+		return OpsRecord{}, fmt.Errorf("transition %s: %w", id, ErrOpsConflict)
 	}
 	if err := s.state.Move(record.Status, target, "operator update"); err != nil {
-		return OpsRecord{}, fmt.Errorf("transition %s: %v", id, err)
+		return OpsRecord{}, fmt.Errorf("transition %s: %w", id, err)
 	}
 	record.Status = target
 	updated, err := s.store.Update(ctx, record, expected)
 	if err != nil {
-		return OpsRecord{}, fmt.Errorf("transition %s: %v", id, err)
+		return OpsRecord{}, fmt.Errorf("transition %s: %w", id, err)
 	}
 	s.audit.Add(updated.ID, "status_changed", actor)
 	return updated, nil

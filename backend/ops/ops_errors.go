@@ -31,22 +31,23 @@ func wrapOps(code, operation string, cause error) error {
 }
 
 // ErrorCode classifies an error for API consumers. Typed OpsError values keep
-// their code; sentinel errors are matched through the error chain.
+// their code; otherwise sentinel errors are matched through the error chain so
+// they survive being wrapped with %w (e.g. by OpsService.Transition).
 func ErrorCode(err error) string {
 	var typed *OpsError
 	if errors.As(err, &typed) {
 		return typed.Code
 	}
 	switch {
-	case err == ErrOpsNotFound:
+	case errors.Is(err, ErrOpsNotFound):
 		return "not_found"
-	case err == ErrOpsConflict:
+	case errors.Is(err, ErrOpsConflict):
 		return "conflict"
-	case err == ErrOpsInvalid:
+	case errors.Is(err, ErrOpsInvalid):
 		return "invalid"
-	case err == ErrOpsTransition:
+	case errors.Is(err, ErrOpsTransition):
 		return "transition"
-	case err == ErrOpsPolicy:
+	case errors.Is(err, ErrOpsPolicy):
 		return "policy"
 	default:
 		return "internal"
