@@ -3,7 +3,6 @@ package httpapi
 import (
 	"encoding/json"
 	"net/http"
-	"sort"
 	"strings"
 	"time"
 
@@ -77,15 +76,10 @@ func (s *server) readingsList(w http.ResponseWriter, r *http.Request) {
 	from := parseTime(r.URL.Query().Get("from"))
 	to := parseTime(r.URL.Query().Get("to"))
 	limit := queryInt(r, "limit", 100)
-	items, err := s.readings.List(r.Context(), unitID, time.Time{}, time.Time{}, 0)
+	items, err := s.readings.List(r.Context(), unitID, from, to, limit)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "readings query failed")
 		return
-	}
-	items = readings.FilterInPlace(items, from, to)
-	sort.Slice(items, func(i, j int) bool { return items[i].RecordedAt.After(items[j].RecordedAt) })
-	if limit > 0 && len(items) > limit {
-		items = items[:limit+1]
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"unit_id": unitID, "items": items})
 }

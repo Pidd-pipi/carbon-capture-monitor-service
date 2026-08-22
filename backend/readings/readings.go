@@ -60,7 +60,10 @@ func (s *Store) Append(ctx context.Context, unitID string, r Reading) error {
 		}
 	}
 	if len(keep) > s.maxPerUnit {
-		keep = keep[:s.maxPerUnit]
+		// Retain the newest samples: keep the trailing slice rather than the
+		// leading one, so a freshly reported reading is never dropped in favor
+		// of older data.
+		keep = keep[len(keep)-s.maxPerUnit:]
 	}
 	s.perUnit[unitID] = keep
 	return nil
@@ -77,6 +80,9 @@ func (s *Store) AppendBatch(ctx context.Context, unitID string, samples []Readin
 }
 
 // List returns the readings of a unit within [from, to], newest first.
+// It never aliases the store's internal slice: callers receive an independent
+// copy, so filtering or sorting the result cannot corrupt another unit's
+// history. This keeps each unit's data visible only to that unit.
 func (s *Store) List(ctx context.Context, unitID string, from, to time.Time, limit int) ([]Reading, error) {
 	select {
 	case <-ctx.Done():
@@ -86,7 +92,7 @@ func (s *Store) List(ctx context.Context, unitID string, from, to time.Time, lim
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	items := s.perUnit[unitID]
-	out := items[:0]
+	out := make([]Reading, 0, len(items))
 	for _, item := range items {
 		if (from.IsZero() || !item.RecordedAt.Before(from)) && (to.IsZero() || !item.RecordedAt.After(to)) {
 			out = append(out, item)

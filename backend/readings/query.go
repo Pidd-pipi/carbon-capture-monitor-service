@@ -21,20 +21,23 @@ type Stats struct {
 
 // Aggregate computes summary statistics over the given samples.
 // A nil or empty input produces a zero-valued Stats with Count 0.
+// The input slice is never mutated.
 func Aggregate(items []Reading) Stats {
 	var stats Stats
 	if len(items) == 0 {
 		return stats
 	}
-	sort.Slice(items, func(i, j int) bool { return items[i].RecordedAt.Before(items[j].RecordedAt) })
-	stats.Count = len(items)
-	stats.MinCapture = items[0].CaptureRatePct
-	stats.MaxCapture = items[0].CaptureRatePct
-	stats.MinPressure = items[0].PressureKPa
-	stats.MaxPressure = items[0].PressureKPa
-	stats.MinSolvent = items[0].SolventLevel
-	stats.MaxSolvent = items[0].SolventLevel
-	for _, item := range items {
+	sorted := make([]Reading, len(items))
+	copy(sorted, items)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].RecordedAt.Before(sorted[j].RecordedAt) })
+	stats.Count = len(sorted)
+	stats.MinCapture = sorted[0].CaptureRatePct
+	stats.MaxCapture = sorted[0].CaptureRatePct
+	stats.MinPressure = sorted[0].PressureKPa
+	stats.MaxPressure = sorted[0].PressureKPa
+	stats.MinSolvent = sorted[0].SolventLevel
+	stats.MaxSolvent = sorted[0].SolventLevel
+	for _, item := range sorted {
 		stats.AvgCapture += item.CaptureRatePct
 		stats.AvgPressure += item.PressureKPa
 		stats.AvgSolvent += item.SolventLevel
@@ -57,20 +60,21 @@ func Aggregate(items []Reading) Stats {
 			stats.MaxSolvent = item.SolventLevel
 		}
 	}
-	stats.AvgCapture /= float64(len(items))
-	stats.AvgPressure /= float64(len(items))
-	stats.AvgSolvent /= float64(len(items))
+	stats.AvgCapture /= float64(len(sorted))
+	stats.AvgPressure /= float64(len(sorted))
+	stats.AvgSolvent /= float64(len(sorted))
 	return stats
 }
 
 // FilterInPlace returns the readings whose timestamps fall inside [from, to].
+// Despite the name, the returned slice does not alias the input backing array,
+// so the caller's slice is left intact.
 func FilterInPlace(items []Reading, from, to time.Time) []Reading {
-	write := 0
+	out := make([]Reading, 0, len(items))
 	for _, item := range items {
 		if (from.IsZero() || !item.RecordedAt.Before(from)) && (to.IsZero() || !item.RecordedAt.After(to)) {
-			items[write] = item
-			write++
+			out = append(out, item)
 		}
 	}
-	return items[:write]
+	return out
 }
