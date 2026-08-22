@@ -9,6 +9,10 @@ import (
 
 var opsAuditSequence uint64
 
+// auditRingCap bounds the in-memory audit trail. Once full, the oldest event
+// is dropped, so a long-running monitor cannot leak memory by appending forever.
+const auditRingCap = 1024
+
 func newOpsAuditID() string { return fmt.Sprintf("evt-%06d", atomic.AddUint64(&opsAuditSequence, 1)) }
 
 type OpsAudit struct {
@@ -22,6 +26,10 @@ func (a *OpsAudit) Add(recordID, typ, actor string) OpsEvent {
 	defer a.mu.Unlock()
 	event := OpsEvent{ID: newOpsAuditID(), RecordID: recordID, Type: typ, Actor: actor, At: time.Now().UTC().Format(time.RFC3339Nano)}
 	a.events = append(a.events, event)
+	if len(a.events) > auditRingCap {
+		// Drop the oldest, preserving oldest→newest order for every reader.
+		a.events = a.events[len(a.events)-auditRingCap:]
+	}
 	return event
 }
 func (a *OpsAudit) For(recordID string) []OpsEvent {

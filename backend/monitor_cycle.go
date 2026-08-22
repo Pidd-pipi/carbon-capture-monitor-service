@@ -22,24 +22,28 @@ func (m *Monitor) runCycle(ctx context.Context) error {
 	results := make(chan cycleResult, len(units))
 
 	var wg sync.WaitGroup
+	wg.Add(len(units))
 	for _, unit := range units {
 		unit := unit
 		go func() {
-			wg.Add(1)
 			defer wg.Done()
-			result := m.evaluateUnit(ctx, unit)
-			results <- result
+			results <- m.evaluateUnit(ctx, unit)
 		}()
 	}
 	wg.Wait()
 	close(results)
 
+	var firstErr error
 	for result := range results {
+		if result.err != nil && firstErr == nil {
+			firstErr = result.err
+			continue
+		}
 		if result.trigger {
 			m.applyResult(ctx, result)
 		}
 	}
 	m.readings.Prune(m.clock())
-	m.recordCycle(nil)
-	return nil
+	m.recordCycle(firstErr)
+	return firstErr
 }

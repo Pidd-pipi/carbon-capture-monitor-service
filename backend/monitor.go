@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -44,9 +45,26 @@ func (m *Monitor) Start(parent context.Context) context.CancelFunc {
 func (m *Monitor) run(ctx context.Context) {
 	for {
 		timer := time.NewTimer(m.interval)
-		<-timer.C
-		m.runCycle(ctx)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C:
+		}
+		m.runCycleSafely(ctx)
 	}
+}
+
+// runCycleSafely runs one evaluation pass and recovers from any panic so a
+// single bad cycle never silently kills the background patrol loop. The panic
+// is surfaced via LastError instead, and the next tick continues as scheduled.
+func (m *Monitor) runCycleSafely(ctx context.Context) {
+	defer func() {
+		if r := recover(); r != nil {
+			m.recordCycle(fmt.Errorf("monitor cycle panic: %v", r))
+		}
+	}()
+	_ = m.runCycle(ctx)
 }
 
 func (m *Monitor) CycleCount() int {
