@@ -17,9 +17,44 @@ func opsEnterpriseMiddleware(next http.Handler) http.Handler {
 		} else {
 			w.Header().Set("X-Operations-Request", "provided")
 		}
-		defer func() { w.Header().Set("X-Operations-Latency-Ms", formatOpsInt(int(time.Since(start).Milliseconds()))) }()
-		next.ServeHTTP(w, r)
+		// The latency header must be present on the wire the moment headers are
+		// committed. Setting it via defer after next.ServeHTTP returns is too
+		// late: the inner handler has already called WriteHeader/Write, after
+		// which header mutations are silently dropped. Stamp it at the first
+		// commit instead so every response — including panic recoveries and
+		// streaming writes — carries the header.
+		recorder := &latencyRecorder{ResponseWriter: w, start: start}
+		next.ServeHTTP(recorder, r)
+		recorder.stampLatency()
 	})
+}
+
+// latencyRecorder writes the X-Operations-Latency-Ms header exactly once, at
+// the point the response is first committed. It is safe to call stampLatency
+// after the handler returns as well, which makes the header show up even when
+// the inner handler never writes anything.
+type latencyRecorder struct {
+	http.ResponseWriter
+	start   time.Time
+	stamped bool
+}
+
+func (l *latencyRecorder) stampLatency() {
+	if l.stamped {
+		return
+	}
+	l.stamped = true
+	l.ResponseWriter.Header().Set("X-Operations-Latency-Ms", formatOpsInt(int(time.Since(l.start).Milliseconds())))
+}
+
+func (l *latencyRecorder) WriteHeader(code int) {
+	l.stampLatency()
+	l.ResponseWriter.WriteHeader(code)
+}
+
+func (l *latencyRecorder) Write(p []byte) (int, error) {
+	l.stampLatency()
+	return l.ResponseWriter.Write(p)
 }
 func formatOpsInt(value int) string {
 	if value == 0 {
