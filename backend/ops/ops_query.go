@@ -6,8 +6,9 @@ import "strings"
 // weight (descending) and then by UpdatedAt (descending). The input slice is
 // never modified.
 func SortRecords(items []OpsRecord) []OpsRecord {
-	sortOpsRecords(items)
-	return items
+	out := append([]OpsRecord(nil), items...)
+	sortOpsRecords(out)
+	return out
 }
 
 func opsMatch(item OpsRecord, query OpsQuery) bool {

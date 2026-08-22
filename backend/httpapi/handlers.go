@@ -14,10 +14,9 @@ import (
 )
 
 type server struct {
-	store     *store.Store
-	alerts    *ops.OpsService
-	readings  *readings.Store
-	listCache *listCache
+	store    *store.Store
+	alerts   *ops.OpsService
+	readings *readings.Store
 }
 
 func (s *server) collection(w http.ResponseWriter, r *http.Request) {

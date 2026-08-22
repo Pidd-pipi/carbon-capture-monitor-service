@@ -28,9 +28,11 @@ func (s *OpsStore) Get(ctx context.Context, id string) (OpsRecord, error) {
 		return OpsRecord{}, ctx.Err()
 	default:
 	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	for _, item := range s.items {
 		if item.ID == id {
-			return item, nil
+			return item.Clone(), nil
 		}
 	}
 	return OpsRecord{}, ErrOpsNotFound
@@ -42,7 +44,13 @@ func (s *OpsStore) List(ctx context.Context) ([]OpsRecord, error) {
 		return nil, ctx.Err()
 	default:
 	}
-	return s.items, nil
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]OpsRecord, len(s.items))
+	for i, item := range s.items {
+		out[i] = item.Clone()
+	}
+	return out, nil
 }
 
 func (s *OpsStore) Put(ctx context.Context, item OpsRecord) error {

@@ -23,25 +23,14 @@ func (s *server) alertsCollection(w http.ResponseWriter, r *http.Request) {
 		Page:     queryInt(r, "page", 1),
 		PageSize: queryInt(r, "page_size", 25),
 	}
-	key := strings.Join([]string{q.Subject, string(q.Status), string(q.Priority), q.Owner, strconv.Itoa(q.Page), strconv.Itoa(q.PageSize)}, "|")
-	if s.listCache != nil && s.listCache.key == key {
-		writeJSON(w, http.StatusOK, ops.OpsPage{Items: s.listCache.items, Page: q.Page, PageSize: q.PageSize, Total: len(s.listCache.items), HasNext: false})
-		return
-	}
+	// Always query fresh: the dashboard must reflect alerts created since the
+	// last refresh, including ones written by concurrent create requests.
 	page, err := s.alerts.Search(r.Context(), q)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "alert search failed")
 		return
 	}
-	s.listCache = &listCache{key: key, items: page.Items}
 	writeJSON(w, http.StatusOK, page)
-}
-
-// listCache memoises the most recent alert page per query key so repeated
-// dashboard refreshes skip a full scan.
-type listCache struct {
-	key   string
-	items []ops.OpsRecord
 }
 
 func (s *server) alertsCreate(w http.ResponseWriter, r *http.Request) {
