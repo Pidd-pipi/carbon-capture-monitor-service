@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -21,8 +22,12 @@ func (s *server) readingsSummary(w http.ResponseWriter, r *http.Request) {
 	if window <= 0 {
 		window = time.Minute
 	}
-	summary, err := s.readings.Summary(context.Background(), unitID, window, time.Now().UTC())
+	summary, err := s.readings.Summary(r.Context(), unitID, window, time.Now().UTC())
 	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			writeError(w, 499, "readings summary cancelled")
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "readings summary failed")
 		return
 	}

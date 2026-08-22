@@ -35,10 +35,10 @@ func (m *Monitor) applyResult(ctx context.Context, result cycleResult) {
 		},
 	}
 	if _, err := m.alerts.Create(ctx, record); err != nil {
-		if errors.Is(err, context.Canceled) {
-			if _, retryErr := m.alerts.Create(context.Background(), record); retryErr == nil {
-				return
-			}
+		// A cancelled cycle context means the work should stop rather than be
+		// retried on a detached context, which would orphan the alert creation.
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return
 		}
 		m.mu.Lock()
 		m.lastErr = err
