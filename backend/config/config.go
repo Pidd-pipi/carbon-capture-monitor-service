@@ -68,17 +68,18 @@ func (p *envLabelsProvider) Labels() map[string]string {
 }
 
 // NewLabelsProvider builds the default alert labels from ALERT_DEFAULT_LABELS
-// (a comma separated key=value list).
+// (a comma separated key=value list). When the variable is unset or empty the
+// provider still returns a usable (non-nil) empty label map so the service
+// runs without any environment configuration.
 func NewLabelsProvider() LabelsProvider {
-	raw := strings.TrimSpace(os.Getenv("ALERT_DEFAULT_LABELS"))
-	if raw == "" {
-		return (*envLabelsProvider)(nil)
-	}
 	out := map[string]string{}
-	for _, part := range strings.Split(raw, ",") {
-		kv := strings.SplitN(part, "=", 2)
-		if len(kv) == 2 {
-			out[strings.TrimSpace(kv[0])] = strings.TrimSpace(kv[1])
+	raw := strings.TrimSpace(os.Getenv("ALERT_DEFAULT_LABELS"))
+	if raw != "" {
+		for _, part := range strings.Split(raw, ",") {
+			kv := strings.SplitN(part, "=", 2)
+			if len(kv) == 2 {
+				out[strings.TrimSpace(kv[0])] = strings.TrimSpace(kv[1])
+			}
 		}
 	}
 	return &envLabelsProvider{labels: out}

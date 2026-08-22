@@ -35,8 +35,15 @@ func main() {
 }
 
 // configureDefaultLabels wires the default alert labels into the ops layer.
+// When the provider has no labels configured (e.g. ALERT_DEFAULT_LABELS unset),
+// a non-nil empty map is installed so the service runs with zero configuration;
+// NormalizeRecord still seeds the "source" label on every created alert.
 func configureDefaultLabels(provider config.LabelsProvider) {
 	if provider != nil {
-		ops.SetDefaultLabels(provider.Labels())
+		if labels := provider.Labels(); labels != nil {
+			ops.SetDefaultLabels(labels)
+			return
+		}
 	}
+	ops.SetDefaultLabels(map[string]string{})
 }

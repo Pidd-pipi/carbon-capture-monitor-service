@@ -115,7 +115,14 @@ func NormalizeRecord(record OpsRecord) OpsRecord {
 		record.Revision = 1
 	}
 	if record.Labels == nil {
-		record.Labels = defaultLabels
+		// Always hand back a writable, non-nil label map so callers can mutate
+		// the record without panicking, even when no defaults are configured.
+		// Copy defaultLabels so mutations on this record never leak into the
+		// shared configuration (and never panic on a nil default).
+		record.Labels = make(map[string]string, len(defaultLabels)+1)
+		for key, value := range defaultLabels {
+			record.Labels[key] = value
+		}
 		record.Labels["source"] = "manual"
 	}
 	return record
@@ -124,7 +131,15 @@ func NormalizeRecord(record OpsRecord) OpsRecord {
 // SetDefaultLabels replaces the default alert labels used by NormalizeRecord.
 // The input map is copied so later caller-side mutations never leak in.
 func SetDefaultLabels(labels map[string]string) {
-	defaultLabels = labels
+	if labels == nil {
+		defaultLabels = nil
+		return
+	}
+	copied := make(map[string]string, len(labels))
+	for key, value := range labels {
+		copied[key] = value
+	}
+	defaultLabels = copied
 }
 
 // DefaultLabels returns a copy of the configured default alert labels.
